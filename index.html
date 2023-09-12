@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blood Bowl Team Selector</title>
+    <style>
+        /* Add some basic styling */
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #team-selector {
+            margin: 20px;
+        }
+        /* Style the label as a clickable text */
+        label[for="include-skills"] {
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Blood Bowl Team Selector</h1>
+
+    <!-- Team selection dropdown -->
+    <div id="team-selector">
+        <label for="team-select">Select a Team:</label>
+        <select id="team-select"></select>
+        <label for="include-skills" id="include-skills-label">Include Skills</label>
+        <input type="checkbox" id="include-skills">
+        <button onclick="showTeams()">Show All Rosters</button>
+    </div>
+
+    <!-- Display players and inducements here -->
+    <div id="team-info"></div>
+
+    <script>
+        let jsonData; // Variable to store the loaded JSON data
+
+        // Load JSON data from the "all_rosters.json" file
+        fetch('all_rosters.json')
+            .then(response => response.json())
+            .then(data => {
+                jsonData = data; // Store the loaded JSON data
+                populateTeamDropdown(); // Populate the team selection dropdown
+            })
+            .catch(error => console.error('Error loading JSON data:', error));
+
+        function populateTeamDropdown() {
+            const teamSelect = document.getElementById('team-select');
+            const uniqueTeams = getUniqueTeams(jsonData);
+
+            // Sort unique teams alphabetically
+            uniqueTeams.sort();
+
+            uniqueTeams.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team;
+                option.text = `${team} (${getTeamCount(team)} teams)`;
+                teamSelect.appendChild(option);
+            });
+        }
+
+        function getUniqueTeams(data) {
+            const teams = data.map(item => item.RACE);
+            return Array.from(new Set(teams));
+        }
+
+        function getTeamCount(teamName) {
+            return jsonData.filter(team => team.RACE === teamName).length;
+        }
+
+        function sortPlayers(playerArray) {
+            // Sort players alphabetically by position
+            return playerArray.sort((a, b) => a.POSITION.localeCompare(b.POSITION));
+        }
+
+        function sortInducements(inducementArray) {
+            // Sort inducements alphabetically by type
+            return inducementArray.sort((a, b) => a.INCENTIVE.localeCompare(b.INCENTIVE));
+        }
+
+        function showTeams() {
+            const selectedTeam = document.getElementById('team-select').value;
+            const includeSkillsCheckbox = document.getElementById('include-skills');
+            const includeSkillsLabel = document.getElementById('include-skills-label');
+            const teamsData = jsonData.filter(team => team.RACE === selectedTeam);
+
+            if (teamsData.length > 0) {
+                const teamInfo = document.getElementById('team-info');
+                teamInfo.innerHTML = '';
+
+                const rosterCounts = {}; // Track the count for each roster
+
+                teamsData.forEach(teamData => {
+                    const sortedPlayers = sortPlayers(teamData.PLAYERS);
+                    const sortedInducements = sortInducements(teamData.INDUCEMENTS);
+                    const playerPositions = sortedPlayers.map(player => {
+                        const skills = includeSkillsCheckbox.checked ? ` (${sortSkills(player.SKILLS)})` : '';
+                        return `${player.POSITION}${skills}`;
+                    }).join(', ');
+                    const inducementIncentives = sortedInducements.map(inducement => `${inducement.INCENTIVE} (x${inducement.QUANTITY})`).join(', ');
+                    const rosterIdentifier = `${playerPositions}-${inducementIncentives}`;
+
+                    if (!rosterCounts[rosterIdentifier]) {
+                        rosterCounts[rosterIdentifier] = 1;
+                    } else {
+                        rosterCounts[rosterIdentifier]++;
+                    }
+                });
+
+                const sortedTeamsData = teamsData.sort((a, b) => {
+                    const rosterA = `${sortPlayers(a.PLAYERS).map(player => {
+                        const skills = includeSkillsCheckbox.checked ? ` (${sortSkills(player.SKILLS)})` : '';
+                        return `${player.POSITION}${skills}`;
+                    }).join(', ')}-${sortInducements(a.INDUCEMENTS).map(inducement => `${inducement.INCENTIVE} (x${inducement.QUANTITY})`).join(', ')}`;
+                    const rosterB = `${sortPlayers(b.PLAYERS).map(player => {
+                        const skills = includeSkillsCheckbox.checked ? ` (${sortSkills(player.SKILLS)})` : '';
+                        return `${player.POSITION}${skills}`;
+                    }).join(', ')}-${sortInducements(b.INDUCEMENTS).map(inducement => `${inducement.INCENTIVE} (x${inducement.QUANTITY})`).join(', ')}`;
+                    return rosterCounts[rosterB] - rosterCounts[rosterA];
+                });
+
+                const uniqueRosterIdentifiers = new Set(); // Track unique roster identifiers
+
+                sortedTeamsData.forEach(teamData => {
+                    const sortedPlayers = sortPlayers(teamData.PLAYERS);
+                    const sortedInducements = sortInducements(teamData.INDUCEMENTS);
+                    const playerPositions = sortedPlayers.map(player => {
+                        const skills = includeSkillsCheckbox.checked ? ` (${sortSkills(player.SKILLS)})` : '';
+                        return `${player.POSITION}${skills}`;
+                    }).join(', ');
+                    const inducementIncentives = sortedInducements.map(inducement => `${inducement.INCENTIVE} (x${inducement.QUANTITY})`).join(', ');
+                    const rosterIdentifier = `${playerPositions}-${inducementIncentives}`;
+
+                    if (!uniqueRosterIdentifiers.has(rosterIdentifier)) {
+                        uniqueRosterIdentifiers.add(rosterIdentifier); // Add to set to track uniqueness
+
+                        const displayName = `${teamData.RACE} (x${rosterCounts[rosterIdentifier]})`;
+
+                        teamInfo.innerHTML += `
+                            <h2>${displayName}</h2>
+                            <h3>Players:</h3>
+                            <ul>
+                                ${sortedPlayers.map(player => `<li>${player.POSITION}${includeSkillsCheckbox.checked ? ` (${sortSkills(player.SKILLS)})` : ''}</li>`).join('')}
+                            </ul>
+                            <h3>Inducements:</h3>
+                            <ul>
+                                ${sortedInducements.map(inducement => `<li>${inducement.INCENTIVE} (x${inducement.QUANTITY})</li>`).join('')}
+                            </ul>
+                            <hr>`;
+                    }
+                });
+            }
+        }
+
+        function sortSkills(skills) {
+            // Sort skills alphabetically and return as a string
+            return skills.sort().join(', ');
+        }
+    </script>
+</body>
+</html>
